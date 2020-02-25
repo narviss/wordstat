@@ -5,8 +5,7 @@ from time import sleep
 import pandas as pd
 
 # need to define settings of your account
-request_word = 'смартфоны'
-
+request_word = 'Культура и религия'
 
 def parse_wordstat(login, password, request_word, number_of_request_pages = 3):
     # открытие страницы wordstat и авторизация 
@@ -37,20 +36,42 @@ def parse_wordstat(login, password, request_word, number_of_request_pages = 3):
         # получение табличных данных
         iter_element = browser.find_by_css('td[class*="b-word-statistics__td"]')
         word_flag = True
+        frequency_current = config.frequency + 1
         for i in range(100):
             if word_flag:
                 queries.append(iter_element[i].text)  
             else:
-                frequency.append(int(''.join((iter_element[i].text.split()))))
+                frequency_current = int(''.join((iter_element[i].text.split())))
+                frequency.append(frequency_current)
+                if(frequency_current < config.frequency):
+                    break
             word_flag = not word_flag
-
+        if (frequency_current < config.frequency):
+            break
         browser.click_link_by_href('#next_page')
         sleep(random.randint(5, 10)/10)
 
-    result = pd.DataFrame(dict(queries = queries, frequency = frequency))
+    #Поиск рекламы на страницах
+    url = "https://yandex.ru/search/?text="
+    browser.visit(url)
+    advense = []
+    count = 0
+    for query in queries:
+        count += 1
+        print(str(count)+'...'+str(len(queries)))
+        web_search_input = browser.find_by_css('input[class="input__control mini-suggest__input"]').first
+        web_search_input = web_search_input.fill(query)
+        sleep(random.randint(5, 10) / 10)
+        search_button = browser.find_by_css('.websearch-button').first
+        search_button.click()
+        sleep(random.randint(5, 10) / 10)
+        span_adv = browser.find_by_text('реклама')
+        advense.append(len(span_adv))
+
+    result = pd.DataFrame(dict(queries = queries, frequency = frequency, advense = advense))
     result.sort_values(by=['frequency'], ascending=False)
-    result.to_excel("output.xlsx", columns=['queries', 'frequency'], index=False)
+    result.to_excel("output.xlsx", columns=['queries', 'frequency', 'advense'], index=False)
     browser.quit()
 
 
-parse_wordstat(config.login, config.password, request_word, 2)
+parse_wordstat(config.login, config.password, request_word, 10)
